@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber-Sec Data Quality Auditor</title>
+    <!-- Chart.js & PapaParse -->
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-dark: #090a10;
+            --card-bg: rgba(18, 22, 36, 0.75);
+            --border-color: rgba(0, 204, 255, 0.2);
+            --cyan: #00ccff;
+            --green: #00ff66;
+            --pink: #ff0055;
+            --yellow: #ffcc00;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(0, 204, 255, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(0, 255, 102, 0.05) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        /* Header */
+        header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(9, 10, 16, 0.8);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--cyan);
+            letter-spacing: 0.5px;
+            text-shadow: 0 0 12px rgba(0, 204, 255, 0.4);
+        }
+
+        .badge {
+            background: rgba(0, 255, 102, 0.15);
+            color: var(--green);
+            border: 1px solid rgba(0, 255, 102, 0.3);
+            padding: 0.25rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        /* Main Layout */
+        .container {
+            max-width: 1300px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+        }
+
+        /* Upload Section */
+        .drop-zone {
+            border: 2px dashed var(--border-color);
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 16px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--cyan);
+            box-shadow: 0 0 25px rgba(0, 204, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .drop-zone h3 {
+            font-size: 1.25rem;
+            color: var(--cyan);
+            margin-bottom: 0.5rem;
+        }
+
+        .drop-zone p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .demo-btn-container {
+            margin-top: 1.5rem;
+        }
+
+        /* Dashboard */
+        .dashboard {
+            display: none;
+        }
+
+        /* Metrics Bar */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            backdrop-filter: blur(8px);
+        }
+
+        .metric-card .title {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-card .value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--green);
+            text-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
+        }
+
+        /* Navigation Tabs */
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 1.5rem;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.75rem 1.25rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            color: var(--cyan);
+        }
+
+        .tab-btn.active {
+            color: var(--cyan);
+            border-bottom-color: var(--cyan);
+            text-shadow: 0 0 8px rgba(0, 204, 255, 0.4);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Cards & Section Containers */
+        .section-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            color: var(--cyan);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Data Table */
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            text-align: left;
+        }
+
+        th {
+            background: rgba(0, 204, 255, 0.1);
+            color: var(--cyan);
+            padding: 0.75rem 1rem;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 0.6rem 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            color: #cbd5e1;
+        }
+
+        tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Status Banners */
+        .alert-banner {
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .alert-success {
+            background: rgba(0, 255, 102, 0.1);
+            border-left: 4px solid var(--green);
+            color: var(--green);
+        }
+
+        .alert-warning {
+            background: rgba(255, 204, 0, 0.1);
+            border-left: 4px solid var(--yellow);
+            color: var(--yellow);
+        }
+
+        .alert-danger {
+            background: rgba(255, 0, 85, 0.1);
+            border-left: 4px solid var(--pink);
+            color: var(--pink);
+        }
+
+        /* Select box */
+        select {
+            background: #111524;
+            color: var(--cyan);
+            border: 1px solid var(--border-color);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        /* Buttons */
+        .btn {
+            background: linear-gradient(135deg, var(--cyan), #0088cc);
+            color: #000;
+            font-weight: 700;
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 0 10px rgba(0, 204, 255, 0.3);
+        }
+
+        .btn-demo {
+            background: linear-gradient(135deg, var(--green), #00aa44);
+            color: #000;
+            font-weight: 700;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            box-shadow: 0 0 15px rgba(0, 255, 102, 0.4);
+        }
+
+        .btn:hover, .btn-demo:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+
+        /* Heatmap Canvas */
+        #heatmap-canvas {
+            width: 100%;
+            height: 120px;
+            border-radius: 6px;
+            background: #05060a;
+            margin-top: 0.5rem;
+        }
+
+        .chart-container {
+            position: relative;
+            max-height: 300px;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">
+            🛡️ Cyber-Sec Data Quality Auditor
+        </div>
+        <div class="badge">Professional Edition</div>
+    </header>
+
+    <div class="container">
+        <!-- File Upload Section -->
+        <div class="drop-zone" id="drop-zone">
+            <div style="font-size: 3.5rem; margin-bottom: 1rem;">📁</div>
+            <h3>Drag & Drop Cybersecurity Dataset (CSV)</h3>
+            <p>Or click to browse from your computer. Processed 100% locally in your browser.</p>
+            <input type="file" id="file-input" accept=".csv">
+            <button class="btn" style="margin-top: 1rem;" onclick="document.getElementById('file-input').click()">Browse Files</button>
+            
+            <div class="demo-btn-container">
+                <p style="margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">— OR FOR LIVE DEMONSTRATIONS —</p>
+                <button class="btn-demo" onclick="loadDemoDataset()">⚡ Load Sample Hackathon Cyber Dataset</button>
+            </div>
+        </div>
+
+        <!-- Dashboard (Hidden until upload) -->
+        <div class="dashboard" id="dashboard">
+            <!-- Metrics Summary -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="title">Total Records</div>
+                    <div class="value" id="metric-rows">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="title">Total Attributes</div>
+                    <div class="value" id="metric-cols">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="title">Missing Values</div>
+                    <div class="value" id="metric-missing" style="color: var(--yellow)">0%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="title">Duplicate Rows</div>
+                    <div class="value" id="metric-duplicates" style="color: var(--pink)">0</div>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('overview', event)">📊 Overview</button>
+                <button class="tab-btn" onclick="switchTab('quality', event)">🧹 Quality Engineering</button>
+                <button class="tab-btn" onclick="switchTab('ml-readiness', event)">🤖 ML Readiness & Leakage</button>
+            </div>
+
+            <!-- TAB 1: OVERVIEW -->
+            <div id="tab-overview" class="tab-content active">
+                <div class="section-card">
+                    <div class="section-title">Dataset Sample (First 10 Rows)</div>
+                    <div class="table-wrapper">
+                        <table id="preview-table">
+                            <thead></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: QUALITY ENGINEERING -->
+            <div id="tab-quality" class="tab-content">
+                <div class="section-card">
+                    <div class="section-title">1. Missing Values Heatmap & Breakdown</div>
+                    <div id="missing-status"></div>
+                    <canvas id="heatmap-canvas"></canvas>
+                    <div class="table-wrapper" style="margin-top: 1rem;">
+                        <table id="missing-table">
+                            <thead>
+                                <tr>
+                                    <th>Column</th>
+                                    <th>Missing Count</th>
+                                    <th>Missing Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="section-card">
+                    <div class="section-title">2. Duplicate Records Analysis</div>
+                    <div id="duplicate-status"></div>
+                </div>
+            </div>
+
+            <!-- TAB 3: ML READINESS & LEAKAGE -->
+            <div id="tab-ml-readiness" class="tab-content">
+                <div class="section-card">
+                    <div class="section-title">Target Label Selection</div>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.75rem;">
+                        Select the target column (e.g. <code>attack_type</code>, <code>label</code>) to run Imbalance & Target Leakage audits.
+                    </p>
+                    <select id="target-select" onchange="analyzeTarget()">
+                        <option value="">-- Select Target Attribute --</option>
+                    </select>
+                </div>
+
+                <div class="section-card">
+                    <div class="section-title">⚖️ Class Imbalance Analyzer</div>
+                    <div id="imbalance-status"></div>
+                    <div class="chart-container">
+                        <canvas id="imbalance-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="section-card">
+                    <div class="section-title">🎯 Target Leakage Scanner (Correlation)</div>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.5rem;">
+                        Features with correlation > 0.85 to the target are flagged for potential target leakage.
+                    </p>
+                    <div id="leakage-status"></div>
+                </div>
+
+                <div class="section-card">
+                    <div class="section-title">🕵️ Security Data Leakage (PII Regex Scanner)</div>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.5rem;">
+                        Scans string fields for raw IPv4 addresses or Email credentials.
+                    </p>
+                    <div id="pii-status"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let rawData = [];
+        let columns = [];
+        let imbalanceChartInstance = null;
+
+        // Drag & Drop
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                parseCSV(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) parseCSV(e.target.files[0]);
+        });
+
+        function parseCSV(file) {
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    rawData = results.data;
+                    columns = results.meta.fields;
+                    renderDashboard();
+                }
+            });
+        }
+
+        // Demo Dataset Generator for Live Pitch
+        function loadDemoDataset() {
+            const demoData = [];
+            const attackTypes = ["Normal", "Normal", "Normal", "Normal", "Normal", "Normal", "Normal", "Normal", "Normal", "DDoS_Attack"];
+            
+            for (let i = 1; i <= 200; i++) {
+                const isAttack = i % 10 === 0;
+                const attackLabel = isAttack ? "DDoS_Attack" : "Normal";
+                const isDuplicate = i > 190; // Injected 10 duplicates
+                
+                demoData.push({
+                    "packet_id": isDuplicate ? 100 : i,
+                    "src_ip": `192.168.1.${(i % 50) + 1}`,
+                    "dst_port": isAttack ? 80 : (i % 2 === 0 ? 443 : 22),
+                    "packet_length": isAttack ? 1500 : Math.floor(Math.random() * 500) + 60,
+                    "dropped_packets": (i % 7 === 0) ? "" : Math.floor(Math.random() * 3), // Injected missing nulls
+                    "cheat_feature_score": isAttack ? 99 : 5, // Target leakage correlation!
+                    "user_email": (i % 15 === 0) ? `admin_user${i}@company.com` : "anonymized",
+                    "attack_type": attackLabel
+                });
+            }
+
+            rawData = demoData;
+            columns = Object.keys(demoData[0]);
+            renderDashboard();
+
+            // Automatically select 'attack_type' target for the demo presentation!
+            setTimeout(() => {
+                const select = document.getElementById('target-select');
+                select.value = 'attack_type';
+                analyzeTarget();
+            }, 300);
+        }
+
+        function renderDashboard() {
+            document.getElementById('drop-zone').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+
+            // Metrics
+            const rowCount = rawData.length;
+            const colCount = columns.length;
+            document.getElementById('metric-rows').innerText = rowCount.toLocaleString();
+            document.getElementById('metric-cols').innerText = colCount.toLocaleString();
+
+            // Calculate Missing
+            let totalCells = rowCount * colCount;
+            let missingCells = 0;
+            let missingByCol = {};
+            columns.forEach(col => missingByCol[col] = 0);
+
+            rawData.forEach(row => {
+                columns.forEach(col => {
+                    if (row[col] === null || row[col] === undefined || String(row[col]).trim() === '') {
+                        missingCells++;
+                        missingByCol[col]++;
+                    }
+                });
+            });
+
+            const missingPct = ((missingCells / totalCells) * 100).toFixed(2);
+            document.getElementById('metric-missing').innerText = missingPct + '%';
+
+            // Duplicates Check
+            const rowStrings = rawData.map(r => JSON.stringify(r));
+            const uniqueRows = new Set(rowStrings);
+            const duplicateCount = rowCount - uniqueRows.size;
+            document.getElementById('metric-duplicates').innerText = duplicateCount.toLocaleString();
+
+            // Render Preview Table
+            renderPreviewTable();
+
+            // Render Quality Tab
+            renderQualityTab(missingByCol, rowCount, duplicateCount);
+
+            // Populate Target Dropdown
+            const select = document.getElementById('target-select');
+            select.innerHTML = '<option value="">-- Select Target Attribute --</option>';
+            columns.forEach(col => {
+                select.innerHTML += `<option value="${col}">${col}</option>`;
+            });
+
+            // Run PII Scanner automatically
+            runPIIScanner();
+        }
+
+        function renderPreviewTable() {
+            const thead = document.querySelector('#preview-table thead');
+            const tbody = document.querySelector('#preview-table tbody');
+            thead.innerHTML = '<tr>' + columns.map(c => `<th>${c}</th>`).join('') + '</tr>';
+            
+            const sample = rawData.slice(0, 10);
+            tbody.innerHTML = sample.map(row => 
+                '<tr>' + columns.map(c => `<td>${row[c] !== undefined ? row[c] : ''}</td>`).join('') + '</tr>'
+            ).join('');
+        }
+
+        function renderQualityTab(missingByCol, rowCount, duplicateCount) {
+            // Missing Table & Status
+            const missingTableBody = document.querySelector('#missing-table tbody');
+            missingTableBody.innerHTML = '';
+            let missingColsCount = 0;
+
+            columns.forEach(col => {
+                const count = missingByCol[col];
+                if (count > 0) {
+                    missingColsCount++;
+                    const pct = ((count / rowCount) * 100).toFixed(2);
+                    missingTableBody.innerHTML += `<tr><td>${col}</td><td>${count}</td><td>${pct}%</td></tr>`;
+                }
+            });
+
+            const missingStatus = document.getElementById('missing-status');
+            if (missingColsCount > 0) {
+                missingStatus.innerHTML = `<div class="alert-banner alert-warning">⚠️ Missing values detected across ${missingColsCount} columns.</div>`;
+            } else {
+                missingStatus.innerHTML = `<div class="alert-banner alert-success">✅ Zero missing values detected! Dataset is 100% complete.</div>`;
+            }
+
+            // Canvas Heatmap
+            drawMissingHeatmap(missingByCol, rowCount);
+
+            // Duplicate Status
+            const dupStatus = document.getElementById('duplicate-status');
+            if (duplicateCount > 0) {
+                dupStatus.innerHTML = `<div class="alert-banner alert-warning">⚠️ Found <strong>${duplicateCount}</strong> duplicate records (${((duplicateCount/rowCount)*100).toFixed(2)}% of dataset).</div>`;
+            } else {
+                dupStatus.innerHTML = `<div class="alert-banner alert-success">✅ No duplicate records found.</div>`;
+            }
+        }
+
+        function drawMissingHeatmap(missingByCol, rowCount) {
+            const canvas = document.getElementById('heatmap-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = 100;
+
+            ctx.fillStyle = '#05060a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const colWidth = canvas.width / columns.length;
+            columns.forEach((col, idx) => {
+                const pct = missingByCol[col] / rowCount;
+                if (pct > 0) {
+                    ctx.fillStyle = `rgba(255, 0, 85, ${Math.max(pct, 0.4)})`;
+                } else {
+                    ctx.fillStyle = 'rgba(0, 255, 102, 0.4)';
+                }
+                ctx.fillRect(idx * colWidth, 0, colWidth - 1, canvas.height);
+            });
+        }
+
+        function analyzeTarget() {
+            const target = document.getElementById('target-select').value;
+            if (!target) return;
+
+            // Counts
+            const counts = {};
+            rawData.forEach(row => {
+                const val = row[target] || 'NULL';
+                counts[val] = (counts[val] || 0) + 1;
+            });
+
+            const total = rawData.length;
+            const labels = Object.keys(counts);
+            const values = Object.values(counts);
+
+            // Imbalance Check
+            const maxVal = Math.max(...values);
+            const maxPct = (maxVal / total) * 100;
+            const imbStatus = document.getElementById('imbalance-status');
+
+            if (maxPct > 85) {
+                imbStatus.innerHTML = `<div class="alert-banner alert-danger">🚨 <strong>Severe Class Imbalance Detected!</strong> Majority class accounts for <strong>${maxPct.toFixed(1)}%</strong> of data. Apply SMOTE or under-sampling before ML training.</div>`;
+            } else {
+                imbStatus.innerHTML = `<div class="alert-banner alert-success">✅ Class distribution is relatively balanced.</div>`;
+            }
+
+            // Render Chart
+            if (imbalanceChartInstance) imbalanceChartInstance.destroy();
+            const ctx = document.getElementById('imbalance-chart').getContext('2d');
+            imbalanceChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Record Count',
+                        data: values,
+                        backgroundColor: '#00ccff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { ticks: { color: '#e2e8f0' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { ticks: { color: '#e2e8f0' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            // Target Leakage Correlation Check
+            analyzeTargetLeakage(target);
+        }
+
+        function analyzeTargetLeakage(target) {
+            const leakageStatus = document.getElementById('leakage-status');
+            
+            // Map target values to numbers if string
+            const targetVals = rawData.map(r => r[target]);
+            const uniqueTargets = [...new Set(targetVals)];
+            const numericTarget = targetVals.map(v => uniqueTargets.indexOf(v));
+
+            let leakedCols = [];
+
+            columns.forEach(col => {
+                if (col === target) return;
+                // Check if numeric
+                const colVals = rawData.map(r => parseFloat(r[col]));
+                if (colVals.every(v => !isNaN(v))) {
+                    const corr = pearsonCorrelation(colVals, numericTarget);
+                    if (Math.abs(corr) > 0.85) {
+                        leakedCols.push({ col, corr: corr.toFixed(3) });
+                    }
+                }
+            });
+
+            if (leakedCols.length > 0) {
+                leakageStatus.innerHTML = `<div class="alert-banner alert-danger">🚨 <strong>Target Leakage Warning:</strong> Features [${leakedCols.map(c => `<code>${c.col} (${c.corr})</code>`).join(', ')}] have > 0.85 correlation with target!</div>`;
+            } else {
+                leakageStatus.innerHTML = `<div class="alert-banner alert-success">✅ No suspicious target leakage detected.</div>`;
+            }
+        }
+
+        function pearsonCorrelation(x, y) {
+            let n = x.length;
+            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+            for (let i = 0; i < n; i++) {
+                sumX += x[i];
+                sumY += y[i];
+                sumXY += x[i] * y[i];
+                sumX2 += x[i] * x[i];
+                sumY2 += y[i] * y[i];
+            }
+            let num = (n * sumXY) - (sumX * sumY);
+            let den = Math.sqrt(((n * sumX2) - (sumX * sumY)) * ((n * sumY2) - (sumY * sumY)));
+            return den === 0 ? 0 : num / den;
+        }
+
+        function runPIIScanner() {
+            const ipRegex = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/;
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            let piiFound = [];
+
+            columns.forEach(col => {
+                const sample = rawData.slice(0, 500).map(r => String(r[col] || ''));
+                if (sample.some(val => ipRegex.test(val))) {
+                    piiFound.push(`<strong>${col}</strong> (Plaintext IP Addresses)`);
+                } else if (sample.some(val => emailRegex.test(val))) {
+                    piiFound.push(`<strong>${col}</strong> (Email Addresses)`);
+                }
+            });
+
+            const piiStatus = document.getElementById('pii-status');
+            if (piiFound.length > 0) {
+                piiStatus.innerHTML = `<div class="alert-banner alert-danger">🚨 <strong>Security Leakage Detected:</strong> ${piiFound.join(', ')} found in dataset.</div>`;
+            } else {
+                piiStatus.innerHTML = `<div class="alert-banner alert-success">✅ No raw IP or Email credentials detected.</div>`;
+            }
+        }
+
+        function switchTab(tabId, evt) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            if (evt && evt.target) evt.target.classList.add('active');
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+        }
+    </script>
+</body>
+</html>
